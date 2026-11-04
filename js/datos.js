@@ -99,31 +99,10 @@ let users = [
 ];
 
 // Envases por código, con su historial de movimientos [fecha, movimiento, responsable]
-let envs = {
-  'ENV-2026-0894': {
-    prod: 'Cerveza IPA 500 ml',
-    tipo: 'Botella retornable · vidrio ámbar',
-    est: 'En distribución',
-    ub: 'Repartidor ruta 04',
-    fr: '12/01/2026',
-    h: [
-      [ '01/10/2026 10:30', 'Salida a distribución', 'Carlos Ruiz' ],
-      [ '28/09/2026 16:15', 'Reingreso y lavado', 'Bodega 02' ],
-      [ '25/09/2026 11:00', 'Entrega a cliente', 'Bar El Lúpulo' ]
-    ]
-  },
-  'ENV-2026-0895': {
-    prod: 'Cerveza Stout 330 ml',
-    tipo: 'Botella retornable · vidrio verde',
-    est: 'En bodega',
-    ub: 'Bodega 01',
-    fr: '15/01/2026',
-    h: [ [ '30/09/2026 09:10', 'Reingreso y lavado', 'Bodega 01' ] ]
-  }
-};
+let envs = {};
 
 // Estado de la interfaz (se pierde al recargar):
-let envSel = 'ENV-2026-0894';
+let envSel = '';
 
 let merma = 150;
 
