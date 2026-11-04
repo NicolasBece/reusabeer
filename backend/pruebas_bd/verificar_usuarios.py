@@ -17,3 +17,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+#para hacer pruebas usar "py -m pruebas_bd.verificar_usuarios" en la terminal

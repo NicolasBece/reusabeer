@@ -11,5 +11,5 @@ def conectar():
         port=os.getenv("DB_PORT", "5432"),
         dbname=os.getenv("DB_NAME", "reusabeer"),
         user=os.getenv("DB_USER", "postgres"),
-        password=os.getenv("DB_PASSWORD", ""),
+        password=os.getenv("DB_PASSWORD", "melon"),
     )
