@@ -65,6 +65,19 @@ class LoteActualizar(BaseModel):
     fecha_vencimiento: date
 
 
+class ProduccionCrear(BaseModel):
+    producto_id: int
+    material_utilizado: float
+    producto_final: float
+    usuario_id: int
+    fecha: date
+    observaciones: str | None = None
+
+    destino_id: int | None = None
+    tipo_residuo: str | None = None
+    observaciones_residuo: str | None = None
+
+
 # =========================
 # INICIO
 # =========================
@@ -609,3 +622,200 @@ def listar_vencimientos():
             """)
 
             return cursor.fetchall()
+
+        # =========================
+# PRODUCCIÓN - LISTAR
+# =========================
+
+@app.get("/api/producciones")
+def listar_producciones():
+
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
+
+            cursor.execute("""
+                SELECT
+                    pr.id,
+                    pr.fecha,
+                    pr.producto_id,
+                    p.nombre AS producto,
+                    pr.material_utilizado,
+                    pr.producto_final,
+                    pr.desperdicio,
+                    pr.eficiencia,
+                    pr.observaciones,
+                    pr.usuario_id,
+                    u.nombre AS usuario
+                FROM produccion pr
+
+                INNER JOIN producto p
+                    ON p.id = pr.producto_id
+
+                INNER JOIN usuario u
+                    ON u.id = pr.usuario_id
+
+                ORDER BY pr.fecha DESC, pr.id DESC;
+            """)
+
+            return cursor.fetchall()
+
+
+# =========================
+# DESTINOS DE RESIDUO
+# =========================
+
+@app.get("/api/destinos-residuo")
+def listar_destinos_residuo():
+
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
+
+            cursor.execute("""
+                SELECT
+                    id,
+                    nombre,
+                    descripcion,
+                    observaciones,
+                    aprovechado
+                FROM destino_residuo
+                ORDER BY id;
+            """)
+
+            return cursor.fetchall()
+
+# =========================
+# PRODUCCIÓN - REGISTRAR
+# =========================
+
+@app.post("/api/producciones")
+def registrar_produccion(datos: ProduccionCrear):
+
+    if datos.material_utilizado <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="La materia prima utilizada debe ser mayor que cero"
+        )
+
+    if datos.producto_final < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="El producto final no puede ser negativo"
+        )
+
+    desperdicio = max(
+        0,
+        datos.material_utilizado - datos.producto_final
+    )
+
+    eficiencia = (
+        datos.producto_final /
+        datos.material_utilizado
+    ) * 100
+
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
+
+            # Verificar producto
+            cursor.execute("""
+                SELECT id
+                FROM producto
+                WHERE id = %s;
+            """, (datos.producto_id,))
+
+            if cursor.fetchone() is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Producto no encontrado"
+                )
+
+            # Verificar usuario
+            cursor.execute("""
+                SELECT id
+                FROM usuario
+                WHERE id = %s;
+            """, (datos.usuario_id,))
+
+            if cursor.fetchone() is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Usuario no encontrado"
+                )
+
+            # Si hay desperdicio, exigir destino
+            if desperdicio > 0:
+
+                if datos.destino_id is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Debe asignar un destino al residuo"
+                    )
+
+                cursor.execute("""
+                    SELECT id
+                    FROM destino_residuo
+                    WHERE id = %s;
+                """, (datos.destino_id,))
+
+                if cursor.fetchone() is None:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Destino de residuo no encontrado"
+                    )
+
+            # Registrar producción
+            cursor.execute("""
+                INSERT INTO produccion (
+                    fecha,
+                    producto_id,
+                    material_utilizado,
+                    producto_final,
+                    observaciones,
+                    usuario_id
+                )
+                VALUES (
+                    %s, %s, %s, %s,
+                    %s, %s
+                )
+                RETURNING *;
+            """, (
+                datos.fecha,
+                datos.producto_id,
+                datos.material_utilizado,
+                datos.producto_final,
+                datos.observaciones,
+                datos.usuario_id
+            ))
+
+            produccion = cursor.fetchone()
+
+            residuo = None
+
+            # Registrar residuo antes de confirmar
+            # la transacción para cumplir el trigger.
+            if desperdicio > 0:
+
+                cursor.execute("""
+                    INSERT INTO residuo (
+                        produccion_id,
+                        cantidad,
+                        destino_id,
+                        tipo,
+                        observaciones
+                    )
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING *;
+                """, (
+                    produccion["id"],
+                    desperdicio,
+                    datos.destino_id,
+                    datos.tipo_residuo or "Merma de producción",
+                    datos.observaciones_residuo
+                ))
+
+                residuo = cursor.fetchone()
+
+    return {
+        "mensaje": "Producción registrada correctamente",
+        "produccion": produccion,
+        "residuo": residuo
+    }
