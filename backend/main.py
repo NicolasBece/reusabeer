@@ -51,6 +51,19 @@ class MovimientoCrear(BaseModel):
     usuario_id: int
     observaciones: str | None = None
 
+class LoteCrear(BaseModel):
+    producto_id: int
+    numero_lote: str
+    cantidad: int
+    fecha_ingreso: date
+    fecha_vencimiento: date
+    usuario_id: int
+
+
+class LoteActualizar(BaseModel):
+    cantidad: int
+    fecha_vencimiento: date
+
 
 # =========================
 # INICIO
@@ -360,4 +373,201 @@ def registrar_movimiento(
     return {
         "mensaje": "Movimiento registrado correctamente",
         "movimiento": nuevo
+    }
+
+# =========================
+# INVENTARIO - LISTAR LOTES
+# =========================
+
+@app.get("/api/lotes")
+def listar_lotes():
+
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
+
+            cursor.execute("""
+                SELECT
+                    l.id,
+                    l.producto_id,
+                    p.nombre AS producto,
+                    l.numero_lote,
+                    l.cantidad,
+                    l.fecha_ingreso,
+                    l.fecha_vencimiento
+                FROM lote_inventario l
+                INNER JOIN producto p
+                    ON p.id = l.producto_id
+                ORDER BY l.id;
+            """)
+
+            return cursor.fetchall()
+
+        # =========================
+# INVENTARIO - CREAR LOTE
+# =========================
+
+@app.post("/api/lotes")
+def crear_lote(lote: LoteCrear):
+
+    if lote.cantidad < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="La cantidad no puede ser negativa"
+        )
+
+    if lote.fecha_vencimiento < lote.fecha_ingreso:
+        raise HTTPException(
+            status_code=400,
+            detail="La fecha de vencimiento no puede ser anterior a la fecha de ingreso"
+        )
+
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
+
+            # Verificar producto
+            cursor.execute("""
+                SELECT id
+                FROM producto
+                WHERE id = %s;
+            """, (lote.producto_id,))
+
+            if cursor.fetchone() is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Producto no encontrado"
+                )
+
+            # Verificar usuario
+            cursor.execute("""
+                SELECT id
+                FROM usuario
+                WHERE id = %s;
+            """, (lote.usuario_id,))
+
+            if cursor.fetchone() is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Usuario no encontrado"
+                )
+
+            # Evitar lote duplicado para el mismo producto
+            cursor.execute("""
+                SELECT id
+                FROM lote_inventario
+                WHERE producto_id = %s
+                AND numero_lote = %s;
+            """, (
+                lote.producto_id,
+                lote.numero_lote
+            ))
+
+            if cursor.fetchone():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Ese número de lote ya existe para el producto seleccionado"
+                )
+
+            cursor.execute("""
+                INSERT INTO lote_inventario (
+                    producto_id,
+                    numero_lote,
+                    cantidad,
+                    fecha_ingreso,
+                    fecha_vencimiento,
+                    usuario_id
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING *;
+            """, (
+                lote.producto_id,
+                lote.numero_lote,
+                lote.cantidad,
+                lote.fecha_ingreso,
+                lote.fecha_vencimiento,
+                lote.usuario_id
+            ))
+
+            nuevo = cursor.fetchone()
+
+    return {
+        "mensaje": "Lote registrado correctamente",
+        "lote": nuevo
+    }
+
+
+# =========================
+# INVENTARIO - ACTUALIZAR
+# =========================
+
+@app.put("/api/lotes/{lote_id}")
+def actualizar_lote(
+    lote_id: int,
+    lote: LoteActualizar
+):
+
+    if lote.cantidad < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="La cantidad no puede ser negativa"
+        )
+
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
+
+            cursor.execute("""
+                UPDATE lote_inventario
+                SET
+                    cantidad = %s,
+                    fecha_vencimiento = %s
+                WHERE id = %s
+                RETURNING *;
+            """, (
+                lote.cantidad,
+                lote.fecha_vencimiento,
+                lote_id
+            ))
+
+            actualizado = cursor.fetchone()
+
+            if actualizado is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Lote no encontrado"
+                )
+
+    return {
+        "mensaje": "Lote actualizado correctamente",
+        "lote": actualizado
+    }
+
+
+# =========================
+# INVENTARIO - ELIMINAR
+# =========================
+
+@app.delete("/api/lotes/{lote_id}")
+def eliminar_lote(lote_id: int):
+
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
+
+            cursor.execute("""
+                DELETE FROM lote_inventario
+                WHERE id = %s
+                RETURNING
+                    id,
+                    numero_lote;
+            """, (lote_id,))
+
+            eliminado = cursor.fetchone()
+
+            if eliminado is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Lote no encontrado"
+                )
+
+    return {
+        "mensaje": "Lote eliminado correctamente",
+        "lote": eliminado
     }
