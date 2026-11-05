@@ -571,3 +571,41 @@ def eliminar_lote(lote_id: int):
         "mensaje": "Lote eliminado correctamente",
         "lote": eliminado
     }
+
+# =========================
+# VENCIMIENTOS
+# =========================
+
+@app.get("/api/vencimientos")
+def listar_vencimientos():
+
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
+
+            cursor.execute("""
+                SELECT
+                    l.id,
+                    l.numero_lote,
+                    l.producto_id,
+                    p.nombre AS producto,
+                    l.cantidad,
+                    l.fecha_ingreso,
+                    l.fecha_vencimiento,
+                    l.estado,
+
+                    (l.fecha_vencimiento - CURRENT_DATE)
+                        AS dias_restantes
+
+                FROM lote_inventario l
+
+                INNER JOIN producto p
+                    ON p.id = l.producto_id
+
+                WHERE
+                    l.fecha_vencimiento <= CURRENT_DATE + 7
+
+                ORDER BY
+                    l.fecha_vencimiento ASC;
+            """)
+
+            return cursor.fetchall()
