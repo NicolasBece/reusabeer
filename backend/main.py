@@ -96,6 +96,131 @@ def estado():
         "base_datos": "reusabeer"
     }
 
+@app.get("/api/dashboard")
+def obtener_dashboard():
+    with conectar() as conexion:
+        with conexion.cursor() as cursor:
+
+            # Eficiencia promedio de producción
+            cursor.execute("""
+                SELECT COALESCE(ROUND(AVG(eficiencia), 2), 0)
+                FROM produccion
+            """)
+            eficiencia_promedio = cursor.fetchone()[0]
+
+            # Inventario
+            cursor.execute("""
+                SELECT
+                    COALESCE(SUM(cantidad), 0),
+                    COUNT(*) FILTER (WHERE estado = 'disponible')
+                FROM lote_inventario
+            """)
+            inventario = cursor.fetchone()
+            stock_total = inventario[0]
+            lotes_activos = inventario[1]
+
+            # Lotes que vencen durante los próximos 7 días
+            cursor.execute("""
+                SELECT COUNT(*)
+                FROM lote_inventario
+                WHERE fecha_vencimiento >= CURRENT_DATE
+                AND fecha_vencimiento <= CURRENT_DATE + INTERVAL '7 days'
+            """)
+            lotes_por_vencer = cursor.fetchone()[0]
+
+            # Envases
+            cursor.execute("""
+                SELECT
+                    COUNT(*),
+                    COUNT(*) FILTER (WHERE estado = 'en_distribucion'),
+                    COUNT(*) FILTER (WHERE estado = 'en_bodega')
+                FROM envase
+            """)
+            envases = cursor.fetchone()
+
+            envases_total = envases[0]
+            envases_distribucion = envases[1]
+            envases_bodega = envases[2]
+
+            # Residuos y aprovechamiento
+            cursor.execute("""
+                SELECT
+                    COALESCE(SUM(r.cantidad), 0),
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN d.aprovechado = TRUE
+                                THEN r.cantidad
+                                ELSE 0
+                            END
+                        ), 0
+                    )
+                FROM residuo r
+                LEFT JOIN destino_residuo d
+                    ON d.id = r.destino_id
+            """)
+            residuos = cursor.fetchone()
+
+            residuos_total = residuos[0]
+            residuos_aprovechados = residuos[1]
+
+            if residuos_total and residuos_total > 0:
+                porcentaje_aprovechado = round(
+                    float(residuos_aprovechados)
+                    / float(residuos_total)
+                    * 100,
+                    1
+                )
+            else:
+                porcentaje_aprovechado = 0
+
+            # Últimos registros de producción
+            cursor.execute("""
+                SELECT
+                    p.id,
+                    p.fecha,
+                    pr.nombre,
+                    p.producto_final,
+                    p.desperdicio,
+                    p.eficiencia
+                FROM produccion p
+                INNER JOIN producto pr
+                    ON pr.id = p.producto_id
+                ORDER BY p.id DESC
+                LIMIT 5
+            """)
+
+            filas = cursor.fetchall()
+
+            ultimas_producciones = [
+                {
+                    "id": fila[0],
+                    "fecha": fila[1],
+                    "producto": fila[2],
+                    "producto_final": float(fila[3]),
+                    "desperdicio": float(fila[4]),
+                    "eficiencia": float(fila[5])
+                }
+                for fila in filas
+            ]
+
+    return {
+        "eficiencia_promedio": float(eficiencia_promedio),
+        "stock_total": int(stock_total),
+        "lotes_activos": int(lotes_activos),
+        "lotes_por_vencer": int(lotes_por_vencer),
+
+        "envases_total": int(envases_total),
+        "envases_distribucion": int(envases_distribucion),
+        "envases_bodega": int(envases_bodega),
+
+        "residuos_total": float(residuos_total),
+        "residuos_aprovechados": float(residuos_aprovechados),
+        "porcentaje_residuos_aprovechados": porcentaje_aprovechado,
+
+        "ultimas_producciones": ultimas_producciones
+    }
+
 
 # =========================
 # CONSULTAR ENVASES
