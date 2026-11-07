@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from psycopg.rows import dict_row
 from base_datos import conectar
-
+import bcrypt
 
 app = FastAPI(
 
@@ -92,9 +92,14 @@ class ProduccionCrear(BaseModel):
     tipo_residuo: str | None = None
     observaciones_residuo: str | None = None
 
+class UsuarioEstado(BaseModel):
+    activo: bool
 
-
-
+class UsuarioCrear(BaseModel):
+    nombre: str
+    email: str
+    rol_id: int
+    contrasena: str
 
 # =========================
 # INICIO
@@ -857,68 +862,196 @@ def listar_productos():
 
             return cursor.fetchall()
 
-
-
-
-
+# =========================
+# CREAR USUARIO
 # =========================
 
-# LISTAR USUARIOS
+@app.post("/api/usuarios", status_code=201)
+def crear_usuario(datos: UsuarioCrear):
 
-# =========================
+    nombre = datos.nombre.strip()
+    email = datos.email.strip().lower()
+    contrasena = datos.contrasena
 
+    if not nombre:
+        raise HTTPException(
+            status_code=400,
+            detail="El nombre es obligatorio"
+        )
 
+    if not email or "@" not in email:
+        raise HTTPException(
+            status_code=400,
+            detail="El correo electrónico no es válido"
+        )
 
-@app.get("/api/usuarios")
+    if len(contrasena) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="La contraseña debe tener mínimo 8 caracteres"
+        )
 
-def listar_usuarios():
-
-
+    if len(contrasena.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=400,
+            detail="La contraseña es demasiado larga"
+        )
 
     with conectar() as conexion:
 
         with conexion.cursor(row_factory=dict_row) as cursor:
 
+            # Verificar que el rol exista
+            cursor.execute("""
+                SELECT id, nombre
+                FROM rol
+                WHERE id = %s;
+            """, (datos.rol_id,))
 
+            rol = cursor.fetchone()
+
+            if rol is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Rol no encontrado"
+                )
+
+            # Evitar correos duplicados
+            cursor.execute("""
+                SELECT id
+                FROM usuario
+                WHERE LOWER(email) = LOWER(%s);
+            """, (email,))
+
+            if cursor.fetchone():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Ya existe un usuario con ese correo"
+                )
+
+            # Crear hash bcrypt compatible con los usuarios actuales
+            contrasena_hash = bcrypt.hashpw(
+                contrasena.encode("utf-8"),
+                bcrypt.gensalt(rounds=12)
+            ).decode("utf-8")
 
             cursor.execute("""
+                INSERT INTO usuario (
+                    nombre,
+                    email,
+                    rol_id,
+                    contrasena_hash
+                )
+                VALUES (%s, %s, %s, %s)
+                RETURNING
+                    id,
+                    nombre,
+                    email,
+                    rol_id,
+                    activo;
+            """, (
+                nombre,
+                email,
+                datos.rol_id,
+                contrasena_hash
+            ))
 
+            nuevo_usuario = cursor.fetchone()
+
+            conexion.commit()
+
+            nuevo_usuario["rol"] = rol["nombre"]
+
+            return {
+                "mensaje": "Usuario creado correctamente",
+                "usuario": nuevo_usuario
+            }
+
+# =========================
+# USUARIOS
+# =========================
+
+@app.get("/api/usuarios")
+def listar_usuarios():
+
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
+
+            cursor.execute("""
                 SELECT
-
                     u.id,
-
                     u.nombre,
-
                     u.email,
-
-                    r.nombre AS rol
-
+                    u.rol_id,
+                    r.nombre AS rol,
+                    u.activo
                 FROM usuario u
-
-                LEFT JOIN rol r ON r.id = u.rol_id
-
-                WHERE u.activo = TRUE
-
+                LEFT JOIN rol r
+                    ON r.id = u.rol_id
                 ORDER BY u.id;
-
             """)
-
-
 
             return cursor.fetchall()
 
 
+@app.patch("/api/usuarios/{usuario_id}/estado")
+def cambiar_estado_usuario(
+    usuario_id: int,
+    datos: UsuarioEstado
+):
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
 
+            cursor.execute("""
+                UPDATE usuario
+                SET activo = %s
+                WHERE id = %s
+                RETURNING id, nombre, email, rol_id, activo;
+            """, (
+                datos.activo,
+                usuario_id
+            ))
 
+            usuario = cursor.fetchone()
+
+            if usuario is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Usuario no encontrado"
+                )
+
+    return {
+        "mensaje": (
+            "Usuario activado correctamente"
+            if datos.activo
+            else "Usuario desactivado correctamente"
+        ),
+        "usuario": usuario
+    }
 
 # =========================
+# ROLES
+# =========================
 
+@app.get("/api/roles")
+def listar_roles():
+
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
+
+            cursor.execute("""
+                SELECT id, nombre
+                FROM rol
+                ORDER BY id;
+            """)
+
+            return cursor.fetchall()
+
+        
+
+# =========================
 # HISTORIAL DE MOVIMIENTOS
-
 # =========================
-
-
-
 @app.get("/api/envases/{envase_id}/movimientos")
 
 def listar_movimientos(envase_id: int):
