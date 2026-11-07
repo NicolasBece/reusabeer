@@ -66,7 +66,8 @@ V.usr = () => {
 
                     <button
                         class="btn sm"
-                        data-p="${u.id}"
+                        data-p="${u.rol_id}"
+                        data-rol="${u.rol}"
                     >
                         ${i('edit')}
                         Permisos
@@ -309,6 +310,233 @@ function filtrarUsuarios(texto) {
 // EVENTOS
 // =========================
 
+const MODULOS_PERMISOS = [
+    ['dash', 'Inicio'],
+    ['inv', 'Inventario'],
+    ['venc', 'Por vencer'],
+    ['prod', 'Producción'],
+    ['res', 'Residuos'],
+    ['env', 'Envases'],
+    ['rep', 'Reportes'],
+    ['usr', 'Usuarios']
+];
+
+
+async function abrirPermisosRol(
+    rolId,
+    nombreRol
+) {
+
+    try {
+
+        const respuesta = await fetch(
+            `http://127.0.0.1:8000/api/roles/${rolId}/permisos`
+        );
+
+        if (!respuesta.ok) {
+            throw new Error(
+                'No fue posible consultar los permisos'
+            );
+        }
+
+        const datos = await respuesta.json();
+
+        const dialogo =
+            document.createElement('dialog');
+
+        dialogo.style.border = 'none';
+        dialogo.style.borderRadius = '16px';
+        dialogo.style.padding = '0';
+        dialogo.style.width = 'min(520px, 90vw)';
+        dialogo.style.boxShadow =
+            '0 20px 60px rgba(0,0,0,.25)';
+
+
+        dialogo.innerHTML = `
+
+            <div
+                class="card"
+                style="
+                    margin:0;
+                    padding:24px;
+                "
+            >
+
+                <h2 style="margin-top:0;">
+                    Permisos
+                </h2>
+
+                <p class="mut">
+                    Rol:
+                    <b>${nombreRol}</b>
+                </p>
+
+
+                <div
+                    style="
+                        display:grid;
+                        grid-template-columns:1fr 1fr;
+                        gap:12px;
+                        margin:22px 0;
+                    "
+                >
+
+                    ${MODULOS_PERMISOS.map(
+                        ([codigo, nombre]) => `
+
+                            <label
+                                style="
+                                    display:flex;
+                                    align-items:center;
+                                    gap:10px;
+                                    padding:12px;
+                                    border:1px solid #ddd;
+                                    border-radius:10px;
+                                "
+                            >
+
+                                <input
+                                    type="checkbox"
+                                    value="${codigo}"
+                                    ${
+                                        datos.modulos.includes(codigo)
+                                            ? 'checked'
+                                            : ''
+                                    }
+                                >
+
+                                <span>
+                                    ${nombre}
+                                </span>
+
+                            </label>
+
+                        `
+                    ).join('')}
+
+                </div>
+
+
+                <div
+                    style="
+                        display:flex;
+                        justify-content:flex-end;
+                        gap:10px;
+                    "
+                >
+
+                    <button
+                        class="btn"
+                        id="cancelarPermisos"
+                    >
+                        Cancelar
+                    </button>
+
+
+                    <button
+                        class="btn pri"
+                        id="guardarPermisos"
+                    >
+                        Guardar permisos
+                    </button>
+
+                </div>
+
+            </div>
+        `;
+
+
+        document.body.appendChild(dialogo);
+
+        dialogo.showModal();
+
+
+        dialogo.querySelector(
+            '#cancelarPermisos'
+        ).onclick = () => {
+
+            dialogo.close();
+            dialogo.remove();
+        };
+
+
+        dialogo.querySelector(
+            '#guardarPermisos'
+        ).onclick = async () => {
+
+            const seleccionados = [
+                ...dialogo.querySelectorAll(
+                    'input[type="checkbox"]:checked'
+                )
+            ].map(
+                input => input.value
+            );
+
+
+            try {
+
+                const respuestaGuardar =
+                    await fetch(
+                        `http://127.0.0.1:8000/api/roles/${rolId}/permisos`,
+                        {
+                            method: 'PUT',
+
+                            headers: {
+                                'Content-Type':
+                                    'application/json'
+                            },
+
+                            body: JSON.stringify({
+                                modulos: seleccionados
+                            })
+                        }
+                    );
+
+
+                const resultado =
+                    await respuestaGuardar.json();
+
+
+                if (!respuestaGuardar.ok) {
+
+                    throw new Error(
+                        resultado.detail ||
+                        'No fue posible guardar los permisos'
+                    );
+                }
+
+
+                toast(
+                    'Permisos actualizados correctamente'
+                );
+
+                dialogo.close();
+                dialogo.remove();
+
+
+            } catch (error) {
+
+                console.error(error);
+
+                toast(error.message);
+            }
+        };
+
+
+        dialogo.addEventListener(
+            'cancel',
+            () => dialogo.remove()
+        );
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        toast(error.message);
+    }
+}
+
 B.usr = () => {
 
     if (!usuariosDB.length) {
@@ -359,20 +587,27 @@ B.usr = () => {
             return;
         }
 
-
-        // Permisos
+                // Permisos
         const permisos =
             e.target.closest('[data-p]');
 
-
         if (permisos) {
 
-            toast(
-                'Gestión de permisos pendiente'
-            );
-        }
-    };
+            const rolId =
+                Number(permisos.dataset.p);
 
+            const nombreRol =
+                permisos.dataset.rol;
+
+            abrirPermisosRol(
+                rolId,
+                nombreRol
+            );
+
+            return;
+        }
+
+    };
 
     // Crear usuario
     const nuevo = $('#nu');

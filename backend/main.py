@@ -101,6 +101,9 @@ class UsuarioCrear(BaseModel):
     rol_id: int
     contrasena: str
 
+class PermisosRolActualizar(BaseModel):
+    modulos: list[str]
+
 # =========================
 # INICIO
 # =========================
@@ -1047,7 +1050,125 @@ def listar_roles():
 
             return cursor.fetchall()
 
-        
+
+# =========================
+# PERMISOS POR ROL
+# =========================
+
+MODULOS_VALIDOS = {
+    "dash",
+    "inv",
+    "venc",
+    "prod",
+    "res",
+    "env",
+    "rep",
+    "usr"
+}
+
+
+@app.get("/api/roles/{rol_id}/permisos")
+def obtener_permisos_rol(rol_id: int):
+
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
+
+            cursor.execute("""
+                SELECT id, nombre
+                FROM rol
+                WHERE id = %s;
+            """, (rol_id,))
+
+            rol = cursor.fetchone()
+
+            if rol is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Rol no encontrado"
+                )
+
+            cursor.execute("""
+                SELECT modulo
+                FROM rol_permiso
+                WHERE rol_id = %s
+                ORDER BY modulo;
+            """, (rol_id,))
+
+            permisos = [
+                fila["modulo"]
+                for fila in cursor.fetchall()
+            ]
+
+    return {
+        "rol_id": rol_id,
+        "rol": rol["nombre"],
+        "modulos": permisos
+    }
+
+
+@app.put("/api/roles/{rol_id}/permisos")
+def actualizar_permisos_rol(
+    rol_id: int,
+    datos: PermisosRolActualizar
+):
+
+    modulos = list(dict.fromkeys(datos.modulos))
+
+    invalidos = [
+        modulo
+        for modulo in modulos
+        if modulo not in MODULOS_VALIDOS
+    ]
+
+    if invalidos:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Módulos no válidos: {', '.join(invalidos)}"
+        )
+
+    with conectar() as conexion:
+        with conexion.cursor(row_factory=dict_row) as cursor:
+
+            cursor.execute("""
+                SELECT id, nombre
+                FROM rol
+                WHERE id = %s;
+            """, (rol_id,))
+
+            rol = cursor.fetchone()
+
+            if rol is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Rol no encontrado"
+                )
+
+            cursor.execute("""
+                DELETE FROM rol_permiso
+                WHERE rol_id = %s;
+            """, (rol_id,))
+
+            for modulo in modulos:
+                cursor.execute("""
+                    INSERT INTO rol_permiso (
+                        rol_id,
+                        modulo
+                    )
+                    VALUES (%s, %s);
+                """, (
+                    rol_id,
+                    modulo
+                ))
+
+            conexion.commit()
+
+    return {
+        "mensaje": "Permisos actualizados correctamente",
+        "rol_id": rol_id,
+        "rol": rol["nombre"],
+        "modulos": modulos
+    }
+
 
 # =========================
 # HISTORIAL DE MOVIMIENTOS
