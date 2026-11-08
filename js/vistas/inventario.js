@@ -1,38 +1,764 @@
-// Pantalla: Inventario y lotes.
+// ==========================================
+// REUSABEER - INVENTARIO Y LOTES
+// FastAPI + PostgreSQL
+// ==========================================
 
-// Vista: Inventario y lotes
-V.inv = () => `<div class="tools"><label class="srch">${i('search')}<input id="q" placeholder="Buscar por nombre, marca o lote"></label><button class="btn pri" id="nl">${i('plus')}Registrar lote</button></div><div class="card wrap"><table><thead><tr><th>Lote</th><th>Producto</th><th>Stock</th><th>Ingreso</th><th>Vence</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>`;
+const INV_API_URL = 'http://127.0.0.1:8000';
 
-// Dibuja las filas de la tabla de inventario (con filtro de texto)
-function invRows(q = '') {
-    $('#tb').innerHTML = lotes.filter(l => (l.id + l.p + l.t).toLowerCase().includes(q.toLowerCase())).map(l => {
-        const r = Math.min(100, l.s / l.m * 25), low = l.s <= l.m;
-        return `<tr><td><b>${l.id}</b></td><td>${l.p}<br><small class="mut">${l.t}</small></td><td>${fmt(l.s)} botes<div class="bar"><i style="width:${r}%;background:${low ? 'var(--bad)' : 'var(--ok)'}"></i></div><small class="mut">mínimo ${l.m}</small></td><td>${fd(l.ing)}</td><td>${fd(l.v)}</td><td><button class="btn sm" data-id="${l.id}" aria-label="Ajustar stock">${i('edit')}Ajustar</button></td></tr>`;
-    }).join('') || '<tr><td colspan="6" class="mut">No hay lotes con ese nombre. Prueba con otra palabra.</td></tr>';
+let lotesApi = [];
+let productosInventario = [];
+let usuariosInventario = [];
+
+
+// ==========================================
+// CARGAR DATOS DESDE EL BACKEND
+// ==========================================
+
+async function cargarInventarioAPI() {
+
+    const [
+        respuestaLotes,
+        respuestaProductos,
+        respuestaUsuarios
+    ] = await Promise.all([
+
+        fetch(`${INV_API_URL}/api/lotes`),
+        fetch(`${INV_API_URL}/api/productos`),
+        fetch(`${INV_API_URL}/api/usuarios`)
+    ]);
+
+
+    if (
+        !respuestaLotes.ok ||
+        !respuestaProductos.ok ||
+        !respuestaUsuarios.ok
+    ) {
+        throw new Error(
+            'No fue posible cargar el inventario'
+        );
+    }
+
+
+    lotesApi = await respuestaLotes.json();
+    productosInventario =
+        await respuestaProductos.json();
+    usuariosInventario =
+        await respuestaUsuarios.json();
 }
 
-// Eventos: búsqueda, ajuste de stock y registro de lotes
-B.inv = () => {
-    invRows();
-    $('#q').oninput = e => invRows(e.target.value);
-    $('#tb').onclick = e => {
-        const b = e.target.closest('button');
-        if (!b)
-            return;
-        const l = lotes.find(x => x.id == b.dataset.id);
-        modal('Ajustar stock de ' + l.id, [{ n: 's', l: 'Nuevo stock (botes)', t: 'number', v: l.s }], d => {
-            if (+d.s < 0)
-                return toast('El stock no puede ser negativo');
-            l.s = +d.s;
-            invRows($('#q').value);
-            toast('Stock actualizado');
+
+// ==========================================
+// VISTA
+// ==========================================
+
+V.inv = () => `
+    <div class="tools">
+
+        <label class="srch">
+            ${i('search')}
+
+            <input
+                id="q"
+                placeholder="Buscar por nombre o lote"
+            >
+        </label>
+
+        <button
+            class="btn pri"
+            id="nl"
+        >
+            ${i('plus')}
+            Registrar lote
+        </button>
+
+    </div>
+
+
+    <div class="card wrap">
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Lote</th>
+                    <th>Producto</th>
+                    <th>Stock</th>
+                    <th>Ingreso</th>
+                    <th>Vence</th>
+                    <th></th>
+                </tr>
+
+            </thead>
+
+            <tbody id="tb"></tbody>
+
+        </table>
+
+    </div>
+`;
+
+
+// ==========================================
+// DIBUJAR FILAS
+// ==========================================
+
+function invRows(q = '') {
+
+    const tabla = $('#tb');
+
+    if (!tabla) {
+        return;
+    }
+
+
+    const filtro =
+        q.trim().toLowerCase();
+
+
+    const encontrados =
+        lotesApi.filter(l => {
+
+            const texto = `
+                ${l.numero_lote}
+                ${l.producto}
+                ${l.cantidad}
+            `.toLowerCase();
+
+            return texto.includes(filtro);
         });
-    };
-    $('#nl').onclick = () => modal('Registrar lote', [{ n: 'p', l: 'Producto' }, { n: 's', l: 'Cantidad (botes)', t: 'number' }, { n: 'ing', l: 'Fecha de ingreso', t: 'date' }, { n: 'v', l: 'Fecha de vencimiento', t: 'date' }], d => {
-        if (+d.s < 0)
-            return toast('La cantidad no puede ser negativa');
-        lotes.push({ id: 'L-2026-' + (96 + lotes.length), p: d.p, t: 'Nuevo', s: +d.s, m: 100, ing: d.ing, v: d.v });
+
+
+    tabla.innerHTML = encontrados.map(l => {
+
+        // Referencia visual.
+        // La BD todavía no almacena stock mínimo.
+        const minimoReferencia = 100;
+
+        const porcentaje =
+            Math.min(
+                100,
+                (l.cantidad / minimoReferencia) * 25
+            );
+
+        const bajo =
+            l.cantidad <= minimoReferencia;
+
+
+        return `
+
+            <tr>
+
+                <td>
+                    <b>${l.numero_lote}</b>
+                </td>
+
+
+                <td>
+                    ${l.producto}
+
+                    <br>
+
+                    <small class="mut">
+                        Producto #${l.producto_id}
+                    </small>
+                </td>
+
+
+                <td>
+
+                    ${fmt(l.cantidad)} botes
+
+                    <div class="bar">
+
+                        <i
+                            style="
+                                width:${porcentaje}%;
+                                background:
+                                ${
+                                    bajo
+                                    ? 'var(--bad)'
+                                    : 'var(--ok)'
+                                }
+                            "
+                        ></i>
+
+                    </div>
+
+                    <small class="mut">
+                        mínimo de referencia
+                        ${minimoReferencia}
+                    </small>
+
+                </td>
+
+
+                <td>
+                    ${fd(l.fecha_ingreso)}
+                </td>
+
+
+                <td>
+                    ${fd(l.fecha_vencimiento)}
+                </td>
+
+
+                <td>
+
+                    <button
+                        class="btn sm"
+                        data-action="editar"
+                        data-id="${l.id}"
+                        aria-label="Ajustar stock"
+                    >
+                        ${i('edit')}
+                        Ajustar
+                    </button>
+
+                    <button
+                        class="btn sm"
+                        data-action="eliminar"
+                        data-id="${l.id}"
+                        aria-label="Eliminar lote"
+                    >
+                        Eliminar
+                    </button>
+
+                </td>
+
+            </tr>
+        `;
+
+    }).join('')
+
+
+    || `
+
+        <tr>
+
+            <td
+                colspan="6"
+                class="mut"
+            >
+                No hay lotes con ese criterio.
+            </td>
+
+        </tr>
+    `;
+}
+
+
+// ==========================================
+// EVENTOS
+// ==========================================
+
+B.inv = async () => {
+
+    // Mostrar mensaje mientras consulta.
+    $('#tb').innerHTML = `
+
+        <tr>
+
+            <td
+                colspan="6"
+                class="mut"
+            >
+                Cargando inventario...
+            </td>
+
+        </tr>
+    `;
+
+
+    // ======================================
+    // CARGAR INFORMACIÓN REAL
+    // ======================================
+
+    try {
+
+        await cargarInventarioAPI();
+
         invRows();
-        toast('Lote registrado');
-    });
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        $('#tb').innerHTML = `
+
+            <tr>
+
+                <td
+                    colspan="6"
+                    class="mut"
+                >
+                    No fue posible conectar
+                    con el backend.
+                </td>
+
+            </tr>
+        `;
+
+        toast(
+            'No se pudo cargar el inventario'
+        );
+
+        return;
+    }
+
+
+    // ======================================
+    // BUSCADOR
+    // ======================================
+
+    $('#q').oninput = e => {
+
+        invRows(
+            e.target.value
+        );
+    };
+
+
+    // ======================================
+    // AJUSTAR / ELIMINAR
+    // ======================================
+
+    $('#tb').onclick = e => {
+
+        const boton =
+            e.target.closest('button');
+
+        if (!boton) {
+            return;
+        }
+
+
+        const loteId =
+            Number(boton.dataset.id);
+
+
+        const lote =
+            lotesApi.find(
+                x => x.id === loteId
+            );
+
+
+        if (!lote) {
+            return;
+        }
+
+
+        // ==================================
+        // EDITAR
+        // ==================================
+
+        if (
+            boton.dataset.action ===
+            'editar'
+        ) {
+
+            modal(
+
+                'Ajustar stock de '
+                + lote.numero_lote,
+
+                [
+                    {
+                        n: 'cantidad',
+                        l: 'Nuevo stock (botes)',
+                        t: 'number',
+                        v: lote.cantidad
+                    },
+
+                    {
+                        n: 'vencimiento',
+                        l: 'Fecha de vencimiento',
+                        t: 'date',
+                        v: lote.fecha_vencimiento
+                    }
+                ],
+
+                async d => {
+
+                    const cantidad =
+                        Number(d.cantidad);
+
+
+                    if (
+                        Number.isNaN(cantidad)
+                        ||
+                        cantidad < 0
+                    ) {
+
+                        return toast(
+                            'El stock no puede ser negativo'
+                        );
+                    }
+
+
+                    try {
+
+                        const respuesta =
+                            await fetch(
+
+                                `${INV_API_URL}/api/lotes/${lote.id}`,
+
+                                {
+                                    method: 'PUT',
+
+                                    headers: {
+                                        'Content-Type':
+                                            'application/json'
+                                    },
+
+                                    body:
+                                        JSON.stringify({
+
+                                            cantidad:
+                                                cantidad,
+
+                                            fecha_vencimiento:
+                                                d.vencimiento
+                                        })
+                                }
+                            );
+
+
+                        const resultado =
+                            await respuesta.json();
+
+
+                        if (!respuesta.ok) {
+
+                            throw new Error(
+                                resultado.detail
+                                ||
+                                'No fue posible actualizar el lote'
+                            );
+                        }
+
+
+                        await cargarInventarioAPI();
+
+                        invRows(
+                            $('#q').value
+                        );
+
+                        toast(
+                            'Stock actualizado correctamente'
+                        );
+
+                    }
+
+                    catch (error) {
+
+                        console.error(error);
+
+                        alert(
+                            error.message
+                        );
+                    }
+                }
+            );
+
+            return;
+        }
+
+
+        // ==================================
+        // ELIMINAR
+        // ==================================
+
+        if (
+            boton.dataset.action ===
+            'eliminar'
+        ) {
+
+            eliminarLote(lote);
+        }
+    };
+
+
+    // ======================================
+    // REGISTRAR NUEVO LOTE
+    // ======================================
+
+    $('#nl').onclick = () => {
+
+        const opcionesProductos =
+            productosInventario.map(
+
+                p =>
+                    `${p.id} | ${p.nombre}`
+            );
+
+
+        const opcionesUsuarios =
+            usuariosInventario.map(
+
+                u =>
+                    `${u.id} | ${u.nombre}`
+            );
+
+
+        modal(
+
+            'Registrar lote',
+
+            [
+                {
+                    n: 'producto',
+                    l: 'Producto',
+                    o: opcionesProductos
+                },
+
+                {
+                    n: 'numero_lote',
+                    l: 'Número de lote',
+                    v: `L-2026-${String(
+                        Date.now()
+                    ).slice(-3)}`
+                },
+
+                {
+                    n: 'cantidad',
+                    l: 'Cantidad (botes)',
+                    t: 'number'
+                },
+
+                {
+                    n: 'ingreso',
+                    l: 'Fecha de ingreso',
+                    t: 'date',
+                    v: new Date()
+                        .toISOString()
+                        .slice(0, 10)
+                },
+
+                {
+                    n: 'vencimiento',
+                    l: 'Fecha de vencimiento',
+                    t: 'date'
+                },
+
+                {
+                    n: 'usuario',
+                    l: 'Responsable',
+                    o: opcionesUsuarios
+                }
+            ],
+
+            async d => {
+
+                const cantidad =
+                    Number(d.cantidad);
+
+
+                if (
+                    Number.isNaN(cantidad)
+                    ||
+                    cantidad < 0
+                ) {
+
+                    return toast(
+                        'La cantidad no puede ser negativa'
+                    );
+                }
+
+
+                if (
+                    !d.numero_lote.trim()
+                ) {
+
+                    return toast(
+                        'Debes escribir un número de lote'
+                    );
+                }
+
+
+                if (
+                    !d.ingreso
+                    ||
+                    !d.vencimiento
+                ) {
+
+                    return toast(
+                        'Debes seleccionar las fechas'
+                    );
+                }
+
+
+                if (
+                    d.vencimiento < d.ingreso
+                ) {
+
+                    return toast(
+                        'El vencimiento no puede ser anterior al ingreso'
+                    );
+                }
+
+
+                const productoId =
+                    Number(
+                        d.producto
+                            .split('|')[0]
+                            .trim()
+                    );
+
+
+                const usuarioId =
+                    Number(
+                        d.usuario
+                            .split('|')[0]
+                            .trim()
+                    );
+
+
+                try {
+
+                    const respuesta =
+                        await fetch(
+
+                            `${INV_API_URL}/api/lotes`,
+
+                            {
+                                method: 'POST',
+
+                                headers: {
+                                    'Content-Type':
+                                        'application/json'
+                                },
+
+                                body:
+                                    JSON.stringify({
+
+                                        producto_id:
+                                            productoId,
+
+                                        numero_lote:
+                                            d.numero_lote
+                                                .trim()
+                                                .toUpperCase(),
+
+                                        cantidad:
+                                            cantidad,
+
+                                        fecha_ingreso:
+                                            d.ingreso,
+
+                                        fecha_vencimiento:
+                                            d.vencimiento,
+
+                                        usuario_id:
+                                            usuarioId
+                                    })
+                            }
+                        );
+
+
+                    const resultado =
+                        await respuesta.json();
+
+
+                    if (!respuesta.ok) {
+
+                        throw new Error(
+                            resultado.detail
+                            ||
+                            'No fue posible registrar el lote'
+                        );
+                    }
+
+
+                    await cargarInventarioAPI();
+
+                    invRows();
+
+                    toast(
+                        'Lote registrado correctamente'
+                    );
+
+                }
+
+                catch (error) {
+
+                    console.error(error);
+
+                    alert(
+                        error.message
+                    );
+                }
+            }
+        );
+    };
 };
+
+
+// ==========================================
+// ELIMINAR LOTE
+// ==========================================
+
+async function eliminarLote(lote) {
+
+    const confirmar =
+        window.confirm(
+            `¿Eliminar el lote ${lote.numero_lote}?`
+        );
+
+
+    if (!confirmar) {
+        return;
+    }
+
+
+    try {
+
+        const respuesta =
+            await fetch(
+
+                `${INV_API_URL}/api/lotes/${lote.id}`,
+
+                {
+                    method: 'DELETE'
+                }
+            );
+
+
+        const resultado =
+            await respuesta.json();
+
+
+        if (!respuesta.ok) {
+
+            throw new Error(
+                resultado.detail
+                ||
+                'No fue posible eliminar el lote'
+            );
+        }
+
+
+        await cargarInventarioAPI();
+
+        invRows(
+            $('#q').value
+        );
+
+
+        toast(
+            'Lote eliminado correctamente'
+        );
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        alert(
+            error.message
+        );
+    }
+}
