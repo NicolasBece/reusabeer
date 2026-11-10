@@ -1,3 +1,6 @@
+from fastapi import Request, Response
+from fastapi.responses import JSONResponse
+from autenticacion import autenticar, ErrorAcceso
 from datetime import date
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -5,6 +8,14 @@ from pydantic import BaseModel
 from psycopg.rows import dict_row
 from base_datos import conectar
 import bcrypt
+import base64
+import hashlib
+import hmac
+import json
+import os
+import secrets
+import time
+
 
 app = FastAPI(
 
@@ -30,7 +41,7 @@ app.add_middleware(
 
     ],
 
-    allow_credentials=False,
+    allow_credentials=True,
 
     allow_methods=["*"],
 
@@ -39,6 +50,160 @@ app.add_middleware(
 )
 
 
+
+# AUTENTICACION Y SESIONES
+
+SESSION_KEY = (
+    os.getenv("SESSION_SECRET", "").encode()
+    or secrets.token_bytes(32)
+)
+
+SESSION_DURATION = 8 * 60 * 60
+COOKIE_NAME = "reusabeer_session"
+
+
+def crear_sesion(usuario_id):
+    contenido = json.dumps({
+        "id": usuario_id,
+        "exp": int(time.time()) + SESSION_DURATION
+    }).encode()
+
+    datos = base64.urlsafe_b64encode(
+        contenido
+    ).decode().rstrip("=")
+
+    firma = hmac.new(
+        SESSION_KEY,
+        datos.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+    return f"{datos}.{firma}"
+
+
+def leer_sesion(token):
+    if not token or "." not in token:
+        return None
+
+    try:
+        datos, firma = token.rsplit(".", 1)
+
+        esperado = hmac.new(
+            SESSION_KEY,
+            datos.encode(),
+            hashlib.sha256
+        ).hexdigest()
+
+        if not hmac.compare_digest(firma, esperado):
+            return None
+
+        contenido = json.loads(
+            base64.urlsafe_b64decode(
+                datos + "=" * (-len(datos) % 4)
+            )
+        )
+
+        if contenido["exp"] <= time.time():
+            return None
+
+        return int(contenido["id"])
+
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+@app.middleware("http")
+async def proteger_api(request: Request, call_next):
+    ruta = request.url.path
+
+    if (
+        request.method == "OPTIONS"
+        or not ruta.startswith("/api/")
+        or ruta == "/api/login"
+    ):
+        return await call_next(request)
+
+    if leer_sesion(request.cookies.get(COOKIE_NAME)) is None:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Inicia sesión para continuar"}
+        )
+
+    return await call_next(request)
+
+
+class DatosLogin(BaseModel):
+    email: str
+    clave: str
+
+
+@app.post("/api/login")
+def iniciar_sesion(datos: DatosLogin, respuesta: Response):
+    try:
+        usuario = autenticar(datos.email, datos.clave)
+
+    except ErrorAcceso as error:
+        raise HTTPException(
+            status_code=401,
+            detail=str(error)
+        ) from None
+
+    respuesta.set_cookie(
+        key=COOKIE_NAME,
+        value=crear_sesion(usuario["id"]),
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        max_age=SESSION_DURATION,
+        path="/"
+    )
+
+    return {"usuario": usuario}
+
+
+@app.get("/api/session")
+def consultar_sesion(request: Request):
+    usuario_id = leer_sesion(
+        request.cookies.get(COOKIE_NAME)
+    )
+
+    with conectar() as conexion, conexion.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT u.id, u.nombre, u.email, u.activo, r.nombre
+            FROM usuario u
+            JOIN rol r ON r.id = u.rol_id
+            WHERE u.id = %s
+            """,
+            (usuario_id,)
+        )
+
+        fila = cursor.fetchone()
+
+        if fila is None or not fila[3]:
+            raise HTTPException(
+                status_code=401,
+                detail="Sesión no válida"
+            )
+
+        return {
+            "usuario": {
+                "id": fila[0],
+                "nombre": fila[1],
+                "email": fila[2],
+                "rol": fila[4]
+            }
+        }
+
+
+@app.post("/api/logout")
+def cerrar_sesion(respuesta: Response):
+    respuesta.delete_cookie(
+        COOKIE_NAME,
+        path="/"
+    )
+
+    return {"mensaje": "Sesión cerrada"}
 
 
 

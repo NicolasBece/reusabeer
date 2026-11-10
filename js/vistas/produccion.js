@@ -187,11 +187,11 @@ async function cargarDatosProduccion() {
         respuestaDestinos
     ] = await Promise.all([
 
-        fetch(`${PROD_API_URL}/api/productos`),
+        apiFetch(`${PROD_API_URL}/api/productos`),
 
-        fetch(`${PROD_API_URL}/api/usuarios`),
+        apiFetch(`${PROD_API_URL}/api/usuarios`),
 
-        fetch(`${PROD_API_URL}/api/destinos-residuo`)
+        apiFetch(`${PROD_API_URL}/api/destinos-residuo`)
     ]);
 
 
@@ -392,7 +392,7 @@ function calcProd() {
 async function cargarHistorialProduccion() {
 
     const respuesta =
-        await fetch(
+        await apiFetch(
             `${PROD_API_URL}/api/producciones`
         );
 
@@ -575,7 +575,7 @@ async function guardarProduccion() {
     try {
 
         const respuesta =
-            await fetch(
+            await apiFetch(
 
                 `${PROD_API_URL}/api/producciones`,
 

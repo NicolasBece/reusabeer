@@ -791,6 +791,81 @@ dialog .ac {
   }
 }
 
+
+/* LOGIN REUSABEER */
+
+#pantalla-login {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: #173c2c;
+}
+
+.tarjeta-login {
+  width: min(100%, 410px);
+  padding: 35px;
+  background: white;
+  color: #183a2c;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 15px 50px #0003;
+}
+
+.tarjeta-login h1 {
+  color: #17432f;
+  margin: 0;
+}
+
+.tarjeta-login h2 {
+  margin: 5px 0;
+}
+
+.tarjeta-login input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #b8c8be;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.tarjeta-login button {
+  border: none;
+  background: #e6a014;
+  color: #142f25;
+  padding: 13px;
+  border-radius: 9px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.tarjeta-login button:disabled {
+  opacity: 0.6;
+}
+
+#login-error {
+  color: #b42525;
+  font-size: 13px;
+  min-height: 18px;
+}
+
+.btn-salir {
+  margin-left: auto;
+  border: 1px solid #ffffff55;
+  border-radius: 7px;
+  background: transparent;
+  color: white;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+
 /* ===== Utilidades (reemplazan los estilos que antes iban dentro del HTML) ===== */
 .leyenda { margin-top: 8px; }
 .txt-bad { color: var(--bad); }

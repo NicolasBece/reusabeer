@@ -61,11 +61,11 @@ async function cargarEnvasesAPI() {
     respuestaUsuarios
 ] = await Promise.all([
 
-    fetch(`${API_URL}/api/envases`),
+    apiFetch(`${API_URL}/api/envases`),
 
-    fetch(`${API_URL}/api/productos`),
+    apiFetch(`${API_URL}/api/productos`),
 
-    fetch(`${API_URL}/api/usuarios`)
+    apiFetch(`${API_URL}/api/usuarios`)
 ]);
 
     if (!respuestaEnvases.ok || !respuestaProductos.ok) {
@@ -144,7 +144,7 @@ async function cargarMovimientosSeleccionado() {
 
     const envase = envs[envSel];
 
-    const respuesta = await fetch(
+    const respuesta = await apiFetch(
         `${API_URL}/api/envases/${envase.dbId}/movimientos`
     );
 
@@ -476,7 +476,7 @@ B.env = () => {
                         );
 
 
-                    const respuesta = await fetch(
+                    const respuesta = await apiFetch(
 
                         `${API_URL}/api/envases`,
 
@@ -600,7 +600,7 @@ B.env = () => {
 
                 try {
 
-                    const respuesta = await fetch(
+                    const respuesta = await apiFetch(
 
                         `${API_URL}/api/envases/${e.dbId}`,
 
@@ -682,7 +682,7 @@ B.env = () => {
 
         try {
 
-            const respuesta = await fetch(
+            const respuesta = await apiFetch(
 
                 `${API_URL}/api/envases/${e.dbId}`,
 
@@ -778,7 +778,7 @@ B.env = () => {
                             .trim()
                     );
 
-                const respuesta = await fetch(
+                const respuesta = await apiFetch(
 
                     `${API_URL}/api/envases/${e.dbId}/movimientos`,
 

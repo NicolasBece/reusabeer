@@ -293,7 +293,7 @@ async function cargarDashboard() {
 
     try {
 
-        const respuesta = await fetch(
+        const respuesta = await apiFetch(
             'http://127.0.0.1:8000/api/dashboard'
         );
 

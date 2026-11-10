@@ -22,9 +22,9 @@ async function cargarInventarioAPI() {
         respuestaUsuarios
     ] = await Promise.all([
 
-        fetch(`${INV_API_URL}/api/lotes`),
-        fetch(`${INV_API_URL}/api/productos`),
-        fetch(`${INV_API_URL}/api/usuarios`)
+        apiFetch(`${INV_API_URL}/api/lotes`),
+        apiFetch(`${INV_API_URL}/api/productos`),
+        apiFetch(`${INV_API_URL}/api/usuarios`)
     ]);
 
 
@@ -401,7 +401,7 @@ B.inv = async () => {
                     try {
 
                         const respuesta =
-                            await fetch(
+                            await apiFetch(
 
                                 `${INV_API_URL}/api/lotes/${lote.id}`,
 
@@ -619,7 +619,7 @@ B.inv = async () => {
                 try {
 
                     const respuesta =
-                        await fetch(
+                        await apiFetch(
 
                             `${INV_API_URL}/api/lotes`,
 
@@ -716,7 +716,7 @@ async function eliminarLote(lote) {
     try {
 
         const respuesta =
-            await fetch(
+            await apiFetch(
 
                 `${INV_API_URL}/api/lotes/${lote.id}`,
 

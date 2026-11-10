@@ -13,4 +13,4 @@ function go(k) {
 
 $('#lg').innerHTML = i('drop');
 
-go('dash');
+iniciarReusabeer();

@@ -57,7 +57,7 @@ V.res = () => {
 // Obtener destinos reales desde FastAPI / Supabase
 async function cargarDestinosResiduos() {
     try {
-        const respuesta = await fetch(
+        const respuesta = await apiFetch(
             'http://127.0.0.1:8000/api/destinos-residuo'
         );
 

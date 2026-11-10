@@ -156,7 +156,7 @@ async function cargarUsuarios() {
 
     try {
 
-        const respuesta = await fetch(
+        const respuesta = await apiFetch(
             'http://127.0.0.1:8000/api/usuarios'
         );
 
@@ -196,7 +196,7 @@ async function cargarRoles() {
 
     try {
 
-        const respuesta = await fetch(
+        const respuesta = await apiFetch(
             'http://127.0.0.1:8000/api/roles'
         );
 
@@ -233,7 +233,7 @@ async function cambiarEstadoUsuario(
 
     try {
 
-        const respuesta = await fetch(
+        const respuesta = await apiFetch(
             `http://127.0.0.1:8000/api/usuarios/${usuarioId}/estado`,
             {
                 method: 'PATCH',
@@ -329,7 +329,7 @@ async function abrirPermisosRol(
 
     try {
 
-        const respuesta = await fetch(
+        const respuesta = await apiFetch(
             `http://127.0.0.1:8000/api/roles/${rolId}/permisos`
         );
 
@@ -476,7 +476,7 @@ async function abrirPermisosRol(
             try {
 
                 const respuestaGuardar =
-                    await fetch(
+                    await apiFetch(
                         `http://127.0.0.1:8000/api/roles/${rolId}/permisos`,
                         {
                             method: 'PUT',
@@ -671,7 +671,7 @@ B.usr = () => {
 
             try {
 
-                const respuesta = await fetch(
+                const respuesta = await apiFetch(
                     'http://127.0.0.1:8000/api/usuarios',
                     {
                         method: 'POST',

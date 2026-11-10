@@ -1,3 +1,4 @@
+
 import os
 import psycopg
 from pathlib import Path
@@ -7,10 +8,11 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 
 def conectar():
     return psycopg.connect(
-        host=os.getenv("DB_HOST"),
+        host=os.environ["DB_HOST"],
         port=os.getenv("DB_PORT", "5432"),
         dbname=os.getenv("DB_NAME", "postgres"),
-        user=os.getenv("DB_USER", "postgres"),
-        password=os.getenv("DB_PASSWORD"),
-        sslmode="require"
+        user=os.environ["DB_USER"],
+        password=os.environ["DB_PASSWORD"],
+        sslmode="require",
+        connect_timeout=10
     )

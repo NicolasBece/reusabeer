@@ -45,7 +45,8 @@ def autenticar(email: str, clave: str) -> dict:
         (usuario_id, nombre, correo, hash_guardado, activo,
          intentos, bloqueado_hasta, rol_id, rol) = fila
 
-        if bloqueado_hasta is not None and bloqueado_hasta > ahora:
+        if bloqueado_hasta is not None and bloqueado_hasta.tzinfo is None:
+            bloqueado_hasta = bloqueado_hasta.replace(tzinfo=timezone.utc)
             raise ErrorAcceso("Cuenta bloqueada temporalmente por demasiados intentos. Intenta más tarde.")
 
         if not verificar_clave(clave, hash_guardado):
@@ -58,6 +59,7 @@ def autenticar(email: str, clave: str) -> dict:
             raise ErrorAcceso(MENSAJE_GENERICO)
 
         if not activo:
+            conexion.commit()
             raise ErrorAcceso("Esta cuenta está desactivada. Habla con el administrador.")
 
         # Acceso correcto: se reinician los intentos y se registra la fecha

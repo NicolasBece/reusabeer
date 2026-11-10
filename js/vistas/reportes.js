@@ -207,7 +207,7 @@ async function cargarPeriodosReporte() {
 
     try {
 
-        const respuesta = await fetch(
+        const respuesta = await apiFetch(
             'http://127.0.0.1:8000/api/reportes/periodos'
         );
 
@@ -265,7 +265,7 @@ async function cargarReporte(periodo) {
 
     try {
 
-        const respuesta = await fetch(
+        const respuesta = await apiFetch(
             `http://127.0.0.1:8000/api/reportes/${periodo}`
         );
 

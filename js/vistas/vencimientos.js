@@ -38,7 +38,7 @@ function diasParaVencer(fecha) {
 async function cargarVencimientosAPI() {
 
     const respuesta =
-        await fetch(
+        await apiFetch(
             `${VENC_API_URL}/api/lotes`
         );
 
